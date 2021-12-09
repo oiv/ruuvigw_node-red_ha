@@ -107,7 +107,7 @@ var parseRawV1Ruuvi = function(manufacturerDataString) {
 
     let pressure = parseInt(manufacturerDataString.substring(pressureStart, pressureEnd), 16); // uint16_t pascals
     pressure += 50000; //Ruuvi format
-    robject.pressure = pressure;
+    robject.pressure = pressure/100;
 
     let accelerationX = parseInt(manufacturerDataString.substring(accelerationXStart, accelerationXEnd), 16); // milli-g
     if (accelerationX > 32767) { accelerationX -= 65536; } //two's complement
@@ -163,7 +163,7 @@ var parseRawV2Ruuvi = function(manufacturerDataString) {
 
     let pressure = parseInt(manufacturerDataString.substring(pressureStart, pressureEnd), 16); // uint16_t pascals
     pressure += 50000; //Ruuvi format
-    robject.pressure = pressure;
+    robject.pressure = pressure/100;
 
     // acceleration values in milli-Gs
     let accelerationX = parseInt(manufacturerDataString.substring(accelerationXStart, accelerationXEnd), 16); // milli-g
@@ -181,9 +181,14 @@ var parseRawV2Ruuvi = function(manufacturerDataString) {
 
     let powerInfoString = manufacturerDataString.substring(powerInfoStart, powerInfoEnd);
     let battery = (parseInt(powerInfoString, 16) >> 5) + 1600; // millivolts > 1600
-    let txpower = (parseInt(powerInfoString, 16) & 0x001F) - 40; // dB > -40
+//    let txpower = (parseInt(powerInfoString, 16) & 0x001F) - 40; // dB > -40
     robject.battery = battery;
-    robject.txPower = txpower;
+//    robject.txPower = txpower;
+// previous txpower calculation is wrong. This should be ok
+    let txPower2  = parseInt(powerInfoString, 16) & 0b11111;
+    txPower2 = txPower2 * 2 - 40;
+    robject.txPower = txPower2;
+
 
     let movementCounterString = manufacturerDataString.substring(movementCounterStart, movementCounterEnd);
     let movementCounter = parseInt(movementCounterString, 16);
@@ -229,7 +234,7 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     	movementCounter: "",
     	sequenceCounter: "",
     	mac: "",
-    	rssi: ""
+    	rssi: "dBm"
     };
     const state_class = {
     	temperature: "measurement",
@@ -245,6 +250,34 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     	mac: "",
     	rssi: "measurement"
     };
+    const icon = {
+    	temperature: "",
+    	humidity: "",
+    	pressure: "",
+    	accelerationX: "mdi:axis-x-arrow",
+    	accelerationY: "mdi:axis-y-arrow",
+    	accelerationZ: "mdi:axis-z-arrow",
+    	battery: "",
+    	txPower: "",
+    	movementCounter: "mdi:gauge",
+    	sequenceCounter: "mdi:gauge",
+    	mac: "",
+    	rssi: ""
+    };
+    const name = {
+    	temperature: "Temperature",
+    	humidity: "Humidity",
+    	pressure: "Pressure",
+    	accelerationX: "Acceleration X",
+    	accelerationY: "Acceleration Y",
+    	accelerationZ: "Acceleration Z",
+    	battery: "Battery Voltage",
+    	txPower: "tx Power",
+    	movementCounter: "Movement Counter",
+    	sequenceCounter: "Mesurement Sequence Number",
+    	mac: "",
+    	rssi: ""
+    };
     let topic = `homeassistant/sensor/ruuvitag_${tmac}_${key}/config`
  
 // Configuration message
@@ -252,7 +285,9 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     if (device_class[key]) cmsg.device_class = device_class[key];
     if (unit_of_measurement[key]) cmsg.unit_of_measurement = unit_of_measurement[key];
     if (state_class[key]) cmsg.state_class = state_class[key];
+    if (icon[key]) cmsg.icon = icon[key];
     cmsg.name = `Ruuvitag ${tagname} ${key}`;
+    if (name[key]) cmsg.name = `Ruuvitag ${tagname} ${name[key]}`;
     cmsg.state_topic = `ruuvigw/sensor/ruuvitag_${tmac}_${key}/state`;
     cmsg.availability_topic = `ruuvigw/${gmac}/status`;
     cmsg.unique_id = `ruuvitag_${tmac}_${key}`
@@ -381,8 +416,8 @@ if (init===1) {
 }
 
 // Send state messages. Should we use combined message instead?
-// Rate limit the mesages to 1/minute
-if (lastmsg+60<ms) {
+// Rate limit the mesages to xx seconds
+if (lastmsg+20<ms) {
     context.set("LM"+regmac,ms);
     for(var l in ruuviData) {
         sendState(regmac,l,ruuviData[l]);
