@@ -118,9 +118,9 @@ var parseRawV1Ruuvi = function(manufacturerDataString) {
     let accelerationZ = parseInt(manufacturerDataString.substring(accelerationZStart, accelerationZEnd), 16); // milli-g
     if (accelerationZ > 32767) { accelerationZ -= 65536; } //two's complement
 
-    robject.accelerationX = accelerationX;
-    robject.accelerationY = accelerationY;
-    robject.accelerationZ = accelerationZ;
+    robject.accelerationX = accelerationX/1000;  // as G
+    robject.accelerationY = accelerationY/1000;  // as G
+    robject.accelerationZ = accelerationZ/1000;  // as G
 
     let battery = parseInt(manufacturerDataString.substring(batteryStart, batteryEnd), 16); // milli-g
     robject.battery = battery;
@@ -175,9 +175,9 @@ var parseRawV2Ruuvi = function(manufacturerDataString) {
     let accelerationZ = parseInt(manufacturerDataString.substring(accelerationZStart, accelerationZEnd), 16); // milli-g
     if ((accelerationZ & 0x8000) > 0) { accelerationZ -= 0x10000; } // two's complement
 
-    robject.accelerationX = accelerationX;
-    robject.accelerationY = accelerationY;
-    robject.accelerationZ = accelerationZ;
+    robject.accelerationX = accelerationX/1000;  // as G
+    robject.accelerationY = accelerationY/1000;  // as G
+    robject.accelerationZ = accelerationZ/1000;  // as G
 
     let powerInfoString = manufacturerDataString.substring(powerInfoStart, powerInfoEnd);
     let battery = (parseInt(powerInfoString, 16) >> 5) + 1600; // millivolts > 1600
@@ -293,7 +293,7 @@ ruuvi/AA:BB:CC:DD:EE:FF/<SENSOR_MAC_ADDRESS>/gw_status {"state": "online"}
 
 // Send status message based on Ruuvi Gateway status. Current Gateway firmware does not seem to send last will
 // so no offline message receved, Maybe later
-if (msg.topic.endsWith("gq_status")) {
+if (msg.topic.endsWith("gw_status")) {
     let gwmac=parseMacFromStatusMqttTopic(msg.topic);
     let amsg = {};
     amsg.topic = `ruuvigw/${gwmac}/status`;
@@ -340,7 +340,7 @@ if (tags[tagmac]) tagname = tags[tagmac];
 
 //  Check if config message is already sent.
 //  Resend every 10 minutes
-var init = 0; //context.get(regmac)|1;
+var init =context.get(regmac)|1;
 var lastmsg = context.get("LM"+regmac)|1;
 var lastconf = context.get("lastconf")|1;
 let ms = Date.now()/1000;
@@ -377,6 +377,7 @@ if (init===1) {
     amsg.topic = `ruuvigw/${gwmac}/status`;
     amsg.payload = "online";
     node.send(amsg);
+    context.set(regmac,3);
 }
 
 // Send state messages. Should we use combined message instead?
@@ -394,4 +395,7 @@ if (lastmsg+60<ms) {
 msg.init=init;
 msg.payload = JSON.stringify(ruuviData);
 context.set(regmac,2);
-return null;
+
+//return msg;
+
+
