@@ -122,8 +122,8 @@ var parseRawV1Ruuvi = function(manufacturerDataString) {
     robject.accelerationY = accelerationY/1000;  // as G
     robject.accelerationZ = accelerationZ/1000;  // as G
 
-    let battery = parseInt(manufacturerDataString.substring(batteryStart, batteryEnd), 16); // milli-g
-    robject.battery = battery;
+    let battery = parseInt(manufacturerDataString.substring(batteryStart, batteryEnd), 16); // milli-v
+    robject.battery = battery/1000;   // V
 
     return robject;
 }
@@ -182,7 +182,7 @@ var parseRawV2Ruuvi = function(manufacturerDataString) {
     let powerInfoString = manufacturerDataString.substring(powerInfoStart, powerInfoEnd);
     let battery = (parseInt(powerInfoString, 16) >> 5) + 1600; // millivolts > 1600
 //    let txpower = (parseInt(powerInfoString, 16) & 0x001F) - 40; // dB > -40
-    robject.battery = battery;
+    robject.battery = battery/1000;  // Volts
 //    robject.txPower = txpower;
 // previous txpower calculation is wrong. This should be ok
     let txPower2  = parseInt(powerInfoString, 16) & 0b11111;
@@ -200,7 +200,12 @@ var parseRawV2Ruuvi = function(manufacturerDataString) {
 
     return robject;
 }
-
+var sendCombinedState = function(tmac,data) {
+    csmsg = {};
+    csmsg.topic = `ruuvigw/sensor/ruuvitag_${tmac}/state`
+    csmsg.payload = JSON.stringify(data);
+    node.send(csmsg);
+}
 var sendState = function(tmac,key,data) {
     msg.topic = `ruuvigw/sensor/ruuvitag_${tmac}_${key}/state`
     msg.payload = data;
@@ -288,9 +293,12 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     if (icon[key]) cmsg.icon = icon[key];
     cmsg.name = `Ruuvitag ${tagname} ${key}`;
     if (name[key]) cmsg.name = `Ruuvitag ${tagname} ${name[key]}`;
-    cmsg.state_topic = `ruuvigw/sensor/ruuvitag_${tmac}_${key}/state`;
+//    cmsg.state_topic = `ruuvigw/sensor/ruuvitag_${tmac}_${key}/state`;
+// state topic for combined message
+    cmsg.state_topic = `ruuvigw/sensor/ruuvitag_${tmac}/state`;
     cmsg.availability_topic = `ruuvigw/${gmac}/status`;
     cmsg.unique_id = `ruuvitag_${tmac}_${key}`
+    cmsg.value_template = `{{ value_json.${key}}}`
 
 // device
     dmsg = {};
@@ -419,9 +427,10 @@ if (init===1) {
 // Rate limit the mesages to xx seconds
 if (lastmsg+20<ms) {
     context.set("LM"+regmac,ms);
-    for(var l in ruuviData) {
-        sendState(regmac,l,ruuviData[l]);
-    }
+//    for(var l in ruuviData) {
+//        sendState(regmac,l,ruuviData[l]);
+//    }
+    sendCombinedState(regmac,ruuviData);
 }
 
 
@@ -432,5 +441,3 @@ msg.payload = JSON.stringify(ruuviData);
 context.set(regmac,2);
 
 //return msg;
-
-
