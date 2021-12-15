@@ -298,7 +298,7 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     cmsg.state_topic = `ruuvigw/sensor/ruuvitag_${tmac}/state`;
     cmsg.availability_topic = `ruuvigw/${gmac}/status`;
     cmsg.unique_id = `ruuvitag_${tmac}_${key}`
-    cmsg.value_template = `{{ value_json.${key}}}`
+    cmsg.value_template = `{{value_json.${key}}}`
 
 // device
     dmsg = {};
@@ -309,9 +309,12 @@ var sendConfig = function(tmac,gmac,tagname,key) {
     cmsg.device=dmsg;
 	
 // Sendit
-    msg.payload = JSON.stringify(cmsg);
-    msg.topic=topic;
-    node.send(msg);
+    confmsg = {};
+    confmsg.payload = JSON.stringify(cmsg);
+    confmsg.topic=topic;
+    confmsg.retain=true;
+    confmsg.qos=0;
+    node.send(confmsg);
 	
 
 }
@@ -388,7 +391,7 @@ var lastmsg = context.get("LM"+regmac)|1;
 var lastconf = context.get("lastconf")|1;
 let ms = Date.now()/1000;
 
-if (lastconf+(60*10)<ms){
+if (lastconf+(60*1)<ms){
     init=1;
     context.set("lastconf",ms);
 }
@@ -423,7 +426,7 @@ if (init===1) {
     context.set(regmac,3);
 }
 
-// Send state messages. Should we use combined message instead?
+// Send state messages.
 // Rate limit the mesages to xx seconds
 if (lastmsg+20<ms) {
     context.set("LM"+regmac,ms);
