@@ -25,6 +25,9 @@ let tags = {
     "DD:BB:CC:DD:EE:FF":"Outside"
 }
 
+// Set tagsAsDevices to true to report each individual tag as own device
+let tagsAsDevices = true;
+
 
 var parseMacFromMqttTopic = function(topic) {
     let macFound = topic.match(/(?:[0-9a-fA-F]:?){12}/g);
@@ -107,7 +110,7 @@ var parseRawV1Ruuvi = function(manufacturerDataString) {
 
     let pressure = parseInt(manufacturerDataString.substring(pressureStart, pressureEnd), 16); // uint16_t pascals
     pressure += 50000; //Ruuvi format
-    robject.pressure = pressure/100;
+    robject.pressure = pressure*10;
 
     let accelerationX = parseInt(manufacturerDataString.substring(accelerationXStart, accelerationXEnd), 16); // milli-g
     if (accelerationX > 32767) { accelerationX -= 65536; } //two's complement
@@ -302,10 +305,18 @@ var sendConfig = function(tmac,gmac,tagname,key) {
 
 // device
     dmsg = {};
-    dmsg.identifiers = gmac;
-    dmsg.name = "RuuviGW";
-    dmsg.manufacturer = "Ruuvi";
-    dmsg.model = "RuuviGateway";
+    if (tagsAsDevices==true) {
+        dmsg.identifiers = tmac;
+        dmsg.name = "Ruuvitag " + tagname;
+        dmsg.manufacturer = "Ruuvi";
+        dmsg.model = "Ruuvitag";
+    } else {
+        dmsg.identifiers = gmac;
+        dmsg.name = "RuuviGW";
+        dmsg.manufacturer = "Ruuvi";
+        dmsg.model = "RuuviGateway";
+        
+    }
     cmsg.device=dmsg;
 	
 // Sendit
@@ -392,7 +403,7 @@ var lastconf = context.get("lastconf")|1;
 let ms = Date.now()/1000;
 
 if (lastconf+(60*1)<ms){
-    init=1;
+    init=2;
     context.set("lastconf",ms);
 }
 
@@ -415,7 +426,7 @@ This is basically what we have after we have parsed the whole message
 }
 */
 // If init for this tag then send config. Should we send it regularly? 
-if (init===1) {
+if (init<3) {
     for(var k in ruuviData) {
         sendConfig(regmac,gwmac,tagname,k);
     }
@@ -423,12 +434,18 @@ if (init===1) {
     amsg.topic = `ruuvigw/${gwmac}/status`;
     amsg.payload = "online";
     node.send(amsg);
+//      Do not send state message for the very first config message.
+    node.log(regmac+" init:"+init);
+    if (init==1) {
+        context.set(regmac,2);
+        return;
+    }
     context.set(regmac,3);
 }
 
-// Send state messages.
+// Send state messages. Should we use combined message instead?
 // Rate limit the mesages to xx seconds
-if (lastmsg+20<ms) {
+if (lastmsg+60<ms) {
     context.set("LM"+regmac,ms);
 //    for(var l in ruuviData) {
 //        sendState(regmac,l,ruuviData[l]);
@@ -436,11 +453,6 @@ if (lastmsg+20<ms) {
     sendCombinedState(regmac,ruuviData);
 }
 
-
-// Store tag mac to context so we do not resend.
-
-msg.init=init;
-msg.payload = JSON.stringify(ruuviData);
-context.set(regmac,2);
-
 //return msg;
+
+
