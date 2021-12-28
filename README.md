@@ -9,6 +9,8 @@ Parse ruuvi gateway messages and create home-assistant config, state and status 
 
 Copy and paste the code from parsetags.js to function node and edit the tagnames.
 
+A new option "tagsAsDevices" to show each tag as individual device instead of all under one single "ruuviGW". Makes using the values in ha a bit simpler.
+
 Optionally you can copy the whole flow from ![node-red-flow.json](node-red-flow.json)
 
 ## Long ##
